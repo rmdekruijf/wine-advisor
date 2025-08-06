@@ -2,66 +2,82 @@ import streamlit as st
 import pandas as pd
 import openai
 
-# Set page config
-st.set_page_config(page_title="Wine Advisor", page_icon="🍷", layout="centered")
-
-# Load secrets
-openai.api_key = st.secrets["OPENAI_API_KEY"]
-
-# Title and intro
-st.title("🍷 Wine Advisor")
+# ----------------------------
+# Page settings
+# ----------------------------
+st.set_page_config(page_title="🍷 Wijn Advies", layout="centered")
+st.title("🍷 Wijn Advies Assistent")
 st.markdown(
-    "Ask for a wine recommendation based on your meal, mood, or occasion. "
-    "We'll check your personal wine collection and give you the best match!"
+    "Upload je wijninventaris (Excel), stel een vraag, en ontvang een gepersonaliseerd wijnadvies."
 )
 
-# Question input
-prompt = st.text_input(
-    "What would you like advice on?",
-    placeholder="e.g. I'm eating spicy pasta, what should I drink?",
-    help="Ask any question like: 'What's a good wine for sushi?' or 'What to drink when hungover?'"
-)
+# ----------------------------
+# OpenAI client
+# ----------------------------
+client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# Load wine list
-@st.cache_data
-def load_wines():
-    df = pd.read_excel("wijnen.xlsx")
-    df = df.fillna("")  # avoid NaN issues
-    return df
+# ----------------------------
+# Upload Excel
+# ----------------------------
+uploaded_file = st.file_uploader("📄 Upload je wijn Excel-bestand", type="xlsx")
 
-df = load_wines()
+if uploaded_file:
+    try:
+        df = pd.read_excel(uploaded_file, sheet_name="Wijn")
+        st.success("✅ Bestand geladen. Hieronder zie je een preview van je wijninventaris:")
+        st.dataframe(df)
 
-# Format wine list into text
-def format_wines(df):
-    wine_list = ""
-    for _, row in df.iterrows():
-        if pd.isna(row.iloc[0]) or row.iloc[0] == "":
-            continue
-        wine_list += (
-            f"- {str(row.iloc[0])} van {str(row.iloc[1])} uit {str(row.iloc[2])} ({str(row.iloc[3])}), "
-            f"druif: {str(row.iloc[4])}, jaar: {str(row.iloc[5])}, "
-            f"drinkvenster: {str(row.iloc[6])}. Beschrijving: {str(row.iloc[7])}. "
-            f"Opengemaakt: {str(row.iloc[8])}, Op voorraad: {str(row.iloc[9])}, "
-            f"Aankooplocatie: {str(row.iloc[10])}\n"
-        )
-    return wine_list
-
-# Button to get advice
-if prompt:
-    with st.spinner("Thinking... 🍇"):
-        wijnlijst = format_wines(df)
-        full_prompt = (
-            f"{prompt}\n\nHier is de lijst met beschikbare wijnen:\n{wijnlijst}"
+        # ----------------------------
+        # Ask question
+        # ----------------------------
+        vraag = st.text_input(
+            "🗣️ Stel je vraag (bv: 'Wat past goed bij pasta?' of 'Ik ben moe maar wil één glas.')"
         )
 
-        try:
-            response = openai.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": full_prompt}],
-                temperature=0.7
-            )
-            antwoord = response.choices[0].message.content
-            st.markdown("### 🍷 AI Wine Recommendation")
-            st.success(antwoord)
-        except Exception as e:
-            st.error(f"Something went wrong: {e}")
+        if st.button("Vraag advies"):
+            if not vraag:
+                st.warning("❗ Voer een vraag in voordat je advies opvraagt.")
+            else:
+                # ----------------------------
+                # Build wine list text safely
+                # ----------------------------
+                wijnLijst = ""
+                for index, row in df.iterrows():
+                    if pd.isna(row.iloc[0]):  # stop at first empty wine name
+                        break
+
+                    # convert all columns to string
+                    cols = [str(row.iloc[i]) if not pd.isna(row.iloc[i]) else "" for i in range(11)]
+
+                    wijnLijst += (
+                        f"- {cols[0]} van {cols[1]} uit {cols[2]} ({cols[3]}), druif: {cols[4]}, jaar: {cols[5]}, "
+                        f"drinkvenster: {cols[6]}. Beschrijving: {cols[7]}. "
+                        f"Opengemaakt: {cols[8]}, Op voorraad: {cols[9]}, Aankooplocatie: {cols[10]}\n"
+                    )
+
+                volledige_prompt = f"{vraag}\n\nHier is de lijst met beschikbare wijnen:\n{wijnLijst}"
+
+                # ----------------------------
+                # Call OpenAI GPT
+                # ----------------------------
+                with st.spinner("🍇 Wijnadvies wordt opgehaald..."):
+                    response = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "Je bent een sommelier AI. Je helpt mensen om de beste wijn uit hun collectie te kiezen op basis van hun vraag en voorkeuren."
+                            },
+                            {"role": "user", "content": volledige_prompt}
+                        ]
+                    )
+
+                    antwoord = response.choices[0].message.content
+                    st.success("✅ Advies ontvangen:")
+                    st.markdown(antwoord)
+
+    except Exception as e:
+        st.error(f"❌ Fout bij het verwerken van het Excel-bestand: {e}")
+
+else:
+    st.info("📥 Upload een Excel-bestand met een werkblad 'Wijn'.")
