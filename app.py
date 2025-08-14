@@ -36,12 +36,14 @@ if st.button("Login"):
     else:
         st.error("❌ Ongeldige gebruikersnaam of wachtwoord")
 
-if st.button("Maak account aan"):
-    if not username or not password:
-        st.error("Vul zowel gebruikersnaam als wachtwoord in.")
-    else:
-        created = create_account(engine, username, password)
-        if created:
-            st.success("✅ Account aangemaakt! Log nu in.")
-        else:
-            st.error("❌ Gebruikersnaam bestaat al.")
+
+# hide for now
+# if st.button("Maak account aan"):
+#     if not username or not password:
+#         st.error("Vul zowel gebruikersnaam als wachtwoord in.")
+#     else:
+#         created = create_account(engine, username, password)
+#         if created:
+#             st.success("✅ Account aangemaakt! Log nu in.")
+#         else:
+#             st.error("❌ Gebruikersnaam bestaat al.")
