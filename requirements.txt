@@ -3,3 +3,5 @@ pandas
 openai
 openpyxl
 bcrypt
+sqlalchemy
+logic
